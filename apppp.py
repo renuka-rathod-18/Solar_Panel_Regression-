@@ -1,54 +1,40 @@
-from flask import Flask, request, jsonify
+import streamlit as st
 import numpy as np
 import pandas as pd
-from tensorflow.keras.models import load_model
 import joblib
-from datetime import datetime
 
-# Initialize Flask app
-app = Flask(__name__)
+# Load model and scaler (if exists)
+try:
+    model, scaler, feature_names = joblib.load("best_model.pkl")  # for .pkl
+except:
+    model = joblib.load("best_model.joblib")  # for .joblib
+    scaler = None
+    feature_names = ['distance_to_solar_noon', 'temperature', 'wind_direction',
+                     'wind_speed', 'sky_cover', 'visibility', 'humidity',
+                     'average_wind_speed', 'average_pressure', 'wind_power', 'temp_humidity_ratio']
 
-# Load model and scaler
-model = load_model("OneDrive/Desktop/Project3/Power-Supply/power_model.h5")
-scaler = joblib.load("OneDrive/Desktop/Project3/Power-Supply/scaler.pkl")
+st.set_page_config(page_title="🔋 Solar Power Predictor", layout="centered")
+st.title("⚡ Solar Power Generation Forecast")
+st.markdown("Enter values for the environmental parameters to predict solar power generation (in Joules).")
 
-# Feature names used during training
-FEATURES = ['hour', 'day', 'weekday', 'month']
+# User input for each feature
+inputs = []
+for feature in feature_names:
+    value = st.number_input(f"Enter {feature}:", value=0.0)
+    inputs.append(value)
 
-@app.route('/')
-def home():
-    return "Power Supply Forecast API. Use POST /predict with JSON {\"datetime\": \"YYYY-MM-DD HH:MM:SS\"}"
-
-@app.route('/predict', methods=['POST'])
-def predict():
+# Predict
+if st.button("🔮 Predict Power"):
     try:
-        # Read datetime from request
-        data = request.get_json()
-        dt = pd.to_datetime(data['datetime'])
+        input_array = np.array(inputs).reshape(1, -1)
 
-        # Extract features
-        features = pd.DataFrame([{
-            'hour': dt.hour,
-            'day': dt.day,
-            'weekday': dt.weekday(),
-            'month': dt.month
-        }])
-
-        # Pad with dummy target (e.g., 0) and scale
-        dummy_target = [0]
-        scaled_input = scaler.transform(np.hstack([features.values, [dummy_target]]))[:, :-1]
-        scaled_input = scaled_input.reshape((1, 1, len(FEATURES)))  # Reshape for LSTM
+        # Apply scaling if required
+        if scaler:
+            input_array = scaler.transform(input_array)
 
         # Predict
-        scaled_output = model.predict(scaled_input)
-
-        # Pad back for inverse transform
-        padded_output = np.hstack([np.zeros((1, scaler.n_features_in_ - 1)), scaled_output])
-        final_output = scaler.inverse_transform(padded_output)[0, -1]
-
-        return jsonify({"predicted_power": round(float(final_output), 2)})
+        predicted_power = model.predict(input_array)[0]
+        st.success(f"Predicted Power Generation: **{predicted_power:.2f} Joules**")
 
     except Exception as e:
-        return jsonify({"error": str(e)})
-if __name__ == '__main__':
-    app.run(debug=True)
+        st.error(f"❌ Error: {str(e)}")
