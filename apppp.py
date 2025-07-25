@@ -7,7 +7,7 @@ import joblib
 try:
     model, scaler, feature_names = joblib.load("best_model.pkl")  # for .pkl
 except:
-    model = joblib.load("best_model.joblib")  # for .joblib
+    model = joblib.load("best_pipeline.joblib")  # for .joblib
     scaler = None
     feature_names = ['distance_to_solar_noon', 'temperature', 'wind_direction',
                      'wind_speed', 'sky_cover', 'visibility', 'humidity',
